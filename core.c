@@ -89,11 +89,13 @@ main(int argc, char **argv) {
         cleanup(15);
 #endif
 
+#ifdef GPSD_FOUND
     // collect gps data
     if (gps_start() == 0)
         puts("gpsd connection esthablished, collecting gps data");
     else
         puts("gps data not available");
+#endif
 
     // add signal handler for cleanup function
     signal(SIGINT, cleanup);
