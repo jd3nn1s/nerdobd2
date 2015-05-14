@@ -3,3 +3,7 @@ nerdobd2
 html/tiles
 database.sqlite3
 TODO
+CMakeCache.txt
+CMakeFiles
+Makefile
+cmake_install.cmake

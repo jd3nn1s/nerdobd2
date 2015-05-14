@@ -25,8 +25,9 @@
 // the http server
 #include "httpd.h"
 
-// gps
-#include "gps.h"
+#ifdef GPSD_FOUND
+#   include "gps.h"
+#endif
 
 // the engine data struct
 typedef struct obd_data_t {

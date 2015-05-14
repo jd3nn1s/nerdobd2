@@ -219,7 +219,9 @@ add_value(char *s, double value) {
 void
 insert_data(obd_data_t obd) {
     char    query[LEN_QUERY];
+#ifdef GPSD_FOUND
     static struct gps_fix_t gps;
+#endif
 
 #ifdef DB_SQLITE
     exec_query(db, "BEGIN TRANSACTION");
@@ -249,6 +251,7 @@ insert_data(obd_data_t obd) {
     add_value(query, obd.temp_air_intake);
     add_value(query, obd.voltage);
 
+#ifdef GPSD_FOUND
     // add gps data, if available
     if (get_gps_data(&gps) == 0) {
         add_value(query, (double) gps.mode);
@@ -265,12 +268,16 @@ insert_data(obd_data_t obd) {
         add_value(query, gps.epc);
         add_value(query, gps.epd);
     }
+#else
+    if (0);
+#endif
     else {
         // fill in empty column fields for gps data
         strlcat(query,
                 ", 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'",
                 sizeof(query));
     }
+
 
     strlcat(query, " )\n", sizeof(query));
 
