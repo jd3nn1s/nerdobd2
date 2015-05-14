@@ -1,4 +1,3 @@
-#include "httpd.h"
 #include <math.h>
 
 // calls add_double, but checks if value actually is a number.

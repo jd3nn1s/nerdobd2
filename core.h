@@ -22,8 +22,9 @@
 #   include "postgres.h"
 #endif
 
-// the http server
-#include "httpd.h"
+#ifdef BUILD_HTTPD
+#   include "httpd.h"
+#endif
 
 #ifdef GPSD_FOUND
 #   include "gps.h"

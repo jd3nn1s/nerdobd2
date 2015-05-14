@@ -3,13 +3,9 @@ project (nerdobd2)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
 include(CMakeDependentOption)
 
-set(SOURCES core.c httpd.c json.c tcp.c kw1281.c)
+set(SOURCES core.c json.c tcp.c kw1281.c common.h config.h core.h json.h kw1281.h tcp.h)
 
-option (DB_POSTGRES
-        "Build PostgreSQL support with user and database name" "user=nerdobd2 dbname=nerdobd2")
-option (DB_SQLITE
-	"Build SQLite support using database name" database.sqlite3)
-
+option (BUILD_HTTPD "Build internal HTTP server" ON)
 option (USE_POSTGRESQL "Use PostgreSQL as database" OFF)
 cmake_dependent_option(USE_SQLITE "Use SQLite as database" OFF "NOT USE_POSTGRESQL" OFF)
 
@@ -27,7 +23,7 @@ endif (USE_POSTGRESQL)
 if (USE_SQLITE)
   find_package(SQLite3 REQUIRED)
   include_directories(${SQLITE3_INCLUDE_DIRS})
-  list(APPEND SOURCES sqlite.c sqlite2json.c postgres.h)
+  list(APPEND SOURCES sqlite.c sqlite2json.c sqlite.h)
   list(APPEND EXTRA_LIBS ${SQLITE3_LIBRARIES})
 endif (USE_SQLITE)
 
@@ -40,8 +36,12 @@ find_package(GPSD)
 if (GPSD_FOUND)
   include_directories(${GPSD_INCLUDE_DIRS})
   list(APPEND EXTRA_LIBS ${GPSD_LIBRARIES})
-  list(APPEND SOURCES gps.c)
+  list(APPEND SOURCES gps.c gps.h)
 endif (GPSD_FOUND)
+
+if (BUILD_HTTPD)
+  list(APPEND SOURCES httpd.c httpd.h)
+endif (BUILD_HTTPD)
 
 configure_file (
   "${PROJECT_SOURCE_DIR}/config.h.in"

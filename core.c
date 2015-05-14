@@ -13,7 +13,9 @@ PGconn *db;
 void    cleanup(int);
 char    cleaning_up = 0;
 
+#ifdef BUILD_HTTPD
 pid_t   pid_httpd = -1;
+#endif
 
 void
 wait4childs(void) {
@@ -33,10 +35,12 @@ cleanup(int signo) {
 
     cleaning_up = 1;
 
+#ifdef BUILD_HTTPD
     // shutdown httpd
     printf("sending SIGTERM to httpd (%d)\n", pid_httpd);
     if (pid_httpd != -1)
         kill(pid_httpd, SIGTERM);
+#endif
 
     // close database
     printf("closing database...\n");
@@ -79,10 +83,11 @@ main(int argc, char **argv) {
     // and initialize
     init_db(db);
 
-    // start http server
-    puts("fireing up httpd server");
+#ifdef BUILD_HTTPD
+    puts("firing up httpd server");
     if ((pid_httpd = httpd_start()) == -1)
         cleanup(15);
+#endif
 
     // collect gps data
     if (gps_start() == 0)

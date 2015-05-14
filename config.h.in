@@ -9,6 +9,7 @@
 #cmakedefine SQLITE3_FOUND
 #cmakedefine POSTGRESQL_FOUND
 #cmakedefine GPSD_FOUND
+#cmakedefine BUILD_HTTPD
 
 #ifdef POSTGRESQL_FOUND
   #define DB_POSTGRES "user=nerdobd2 dbname=nerdobd2"
