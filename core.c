@@ -1,15 +1,5 @@
 #include "core.h"
 
-// database handle
-#ifdef DB_SQLITE
-sqlite3 *db;
-#endif
-
-#ifdef DB_POSTGRES
-PGconn *db;
-#endif
-
-
 void    cleanup(int);
 char    cleaning_up = 0;
 
@@ -42,9 +32,7 @@ cleanup(int signo) {
         kill(pid_httpd, SIGTERM);
 #endif
 
-    // close database
-    printf("closing database...\n");
-    close_db(db);
+    close_output_plugins();
 
     // close serial port
     printf("shutting down serial port...\n");
@@ -76,12 +64,10 @@ main(int argc, char **argv) {
     // catch orphans
     signal(SIGCHLD, sig_chld);
 
-    // open the database
-    if ((db = open_db()) == NULL)
+    if (!load_output_plugins()) {
+        fprintf(stderr, "Unable to initialize output plugins.\n");
         return -1;
-
-    // and initialize
-    init_db(db);
+    }
 
 #ifdef BUILD_HTTPD
     puts("firing up httpd server");
@@ -92,7 +78,7 @@ main(int argc, char **argv) {
 #ifdef GPSD_FOUND
     // collect gps data
     if (gps_start() == 0)
-        puts("gpsd connection esthablished, collecting gps data");
+        puts("gpsd connection established, collecting gps data");
     else
         puts("gps data not available");
 #endif
@@ -103,21 +89,7 @@ main(int argc, char **argv) {
 
 
 #ifdef TEST
-#   ifdef DB_SQLITE
-    exec_query(db, "INSERT OR REPLACE INTO setpoints VALUES ( \
-                   'startup', DATETIME('now', 'localtime'), ( \
-                   SELECT CASE WHEN count(*) = 0 \
-                   THEN 0 \
-                   ELSE id END \
-                   FROM data \
-                   ORDER BY id DESC LIMIT 1 \
-                   ) \
-               )");
-#   endif
-#   ifdef DB_POSTGRES
-    exec_query(db, "SELECT set_setpoint('startup')");
-#   endif
-
+    output_plugins_set_point("startup");
     // for testing purposes
     int     i = 0, flag = 0;
     for (;;) {
@@ -159,20 +131,7 @@ main(int argc, char **argv) {
              * it is probably due to a new ride was started, since we
              * set the startup set point to the last index we can find
              */
-#ifdef DB_SQLITE
-            exec_query(db, "INSERT OR REPLACE INTO setpoints VALUES ( \
-                           'startup', DATETIME('now', 'localtime'), ( \
-                           SELECT CASE WHEN count(*) = 0 \
-                           THEN 0 \
-                           ELSE id END \
-                           FROM data \
-                           ORDER BY id DESC LIMIT 1 \
-                           ) \
-                       )");
-#endif
-#ifdef DB_POSTGRES
-            exec_query(db, "SELECT set_setpoint('startup')");
-#endif
+            output_plugins_set_point("startup");
 
             // set the first run flags
             consumption_first_run = 1;
@@ -212,91 +171,19 @@ main(int argc, char **argv) {
 }
 
 void
-add_value(char *s, double value) {
-    char    buffer[LEN_QUERY];
-
-    strncpy(buffer, s, LEN_QUERY);
-
-    if (!isnan(value))
-        snprintf(s, LEN_QUERY, "%s, %f", buffer, value);
-    else
-        snprintf(s, LEN_QUERY, "%s, 'NaN'", buffer);
-}
-
-void
 insert_data(obd_data_t obd) {
-    char    query[LEN_QUERY];
-#ifdef GPSD_FOUND
-    static struct gps_fix_t gps;
-#endif
-
-#ifdef DB_SQLITE
-    exec_query(db, "BEGIN TRANSACTION");
-#endif
-
-    strlcpy(query,
-#ifdef DB_SQLITE
-            "INSERT INTO data VALUES ( NULL, DATETIME('now', 'localtime')",
-#endif
-#ifdef DB_POSTGRES
-            "INSERT INTO data VALUES ( DEFAULT, current_timestamp",
-#endif
-            sizeof(query));
-
-    // add obd data
-    add_value(query, obd.rpm);
-    add_value(query, obd.speed);
-    add_value(query, obd.injection_time);
-    add_value(query, obd.oil_pressure);
-    add_value(query, obd.consumption_per_100km);
-    add_value(query, obd.consumption_per_h);
-    add_value(query, obd.duration_consumption);
-    add_value(query, obd.duration_speed);
-    add_value(query, obd.consumption_per_h / 3600 * obd.duration_consumption);
-    add_value(query, obd.speed / 3600 * obd.duration_speed);
-    add_value(query, obd.temp_engine);
-    add_value(query, obd.temp_air_intake);
-    add_value(query, obd.voltage);
 
 #ifdef GPSD_FOUND
-    // add gps data, if available
-    if (get_gps_data(&gps) == 0) {
-        add_value(query, (double) gps.mode);
-        add_value(query, gps.latitude);
-        add_value(query, gps.longitude);
-        add_value(query, gps.altitude);
-        add_value(query, gps.speed);
-        add_value(query, gps.climb);
-        add_value(query, gps.track);
-        add_value(query, gps.epy);
-        add_value(query, gps.epx);
-        add_value(query, gps.epv);
-        add_value(query, gps.eps);
-        add_value(query, gps.epc);
-        add_value(query, gps.epd);
-    }
-#else
-    if (0);
+   static struct gps_fix_t gps;
+   if (get_gps_data(&gps) == 0)
+       obd.gps = gps;
 #endif
-    else {
-        // fill in empty column fields for gps data
-        strlcat(query,
-                ", 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'",
-                sizeof(query));
-    }
 
-
-    strlcat(query, " )\n", sizeof(query));
-
-    exec_query(db, query);
-
-#ifdef DB_SQLITE
-    exec_query(db, "END TRANSACTION");
-#endif
+    output_plugins_handle_data(&obd);
 }
 
 // this struct collects all engine data
-// before sending it to database
+// before sending it to the output plugins
 obd_data_t obd_data;
 
 void
@@ -323,7 +210,7 @@ handle_data(char *name, float value, float duration) {
         obd_data.oil_pressure = value;
 
     // everytime we get speed, calculate consumption
-    // end send data to database
+    // end send data to output plugins
     else if (!strcmp(name, "speed")) {
         obd_data.speed = value;
 
