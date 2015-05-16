@@ -100,17 +100,23 @@ bool load_plugin(const char* plugin_file, bool query_plugin) {
               fprintf(stderr, "Configured query plugin does not implement all required capabilities.\n");
     }
     else {
-        loaded_plugins_structs[0] = output_plugin_load();
-        loaded_plugins[0] = handle;
+        struct output_plugin* plugin = output_plugin_load();
+        int free_pos = 0;
+
+        if (plugin) {
+            while (loaded_plugins_structs[free_pos] && free_pos < MAX_PLUGINS)
+                free_pos++;
+
+            if (free_pos == MAX_PLUGINS) {
+                fprintf(stderr, "Too many output plugins configured.\n");
+                close_output_plugins();
+                return false;
+            }
+            loaded_plugins_structs[free_pos] = plugin;
+            loaded_plugins[free_pos] = handle;
+        }
     }
     return true;
-}
-
-void init_output_plugins(void) {
-    int i = 0;
-    for (; loaded_plugins[i] && i < MAX_PLUGINS; i++) {
-        
-    }        
 }
 
 // Output Plugin Interface

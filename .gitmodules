@@ -7,3 +7,6 @@
 [submodule "externals/libcsv"]
 	path = externals/libcsv
 	url = git@github.com:robertpostill/libcsv.git
+[submodule "externals/easywsclient"]
+	path = externals/easywsclient
+	url = git@github.com:dhbaird/easywsclient.git
