@@ -57,3 +57,12 @@ target_link_libraries (nerdobd2 ${EXTRA_LIBS} dl)
 add_library(output_csv SHARED output_csv.c common.h plugins.h)
 include_directories(${CMAKE_SOURCE_DIR}/externals/libcsv)
 target_link_libraries (output_csv ${CMAKE_SOURCE_DIR}/externals/libcsv/.libs/libcsv.a)
+
+add_library(easywsclient externals/easywsclient/easywsclient.hpp externals/easywsclient/easywsclient.cpp)
+set_target_properties(easywsclient PROPERTIES COMPILE_FLAGS "-fPIC")
+include_directories(${CMAKE_SOURCE_DIR}/externals/easywsclient)
+
+add_library(output_websocket SHARED output_websocket.cpp common.h plugins.h)
+target_link_libraries(output_websocket ${CMAKE_SOURCE_DIR}/libeasywsclient.a)
+
+set(CMAKE_BUILD_TYPE Debug)
