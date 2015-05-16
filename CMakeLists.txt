@@ -3,29 +3,25 @@ project (nerdobd2)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
 include(CMakeDependentOption)
 
-set(SOURCES core.c json.c tcp.c kw1281.c common.h config.h core.h json.h kw1281.h tcp.h plugins.c plugins.h)
+set(SOURCES core.c kw1281.c common.h config.h core.h kw1281.h plugins.c plugins.h)
 
 option (BUILD_HTTPD "Build internal HTTP server" ON)
 option (USE_POSTGRESQL "Use PostgreSQL as database" OFF)
+option (USE_SQLITE "Use SQLite as database" ON)
 option (USE_GPSD "Use gpsd to get location" ON)
-cmake_dependent_option(USE_SQLITE "Use SQLite as database" OFF "NOT USE_POSTGRESQL" OFF)
-
-if (NOT USE_POSTGRESQL AND NOT USE_SQLITE)
-  message(FATAL_ERROR "You must set USE_POSTGRESQL or USE_SQLITE")
-endif (NOT USE_POSTGRESQL AND NOT USE_SQLITE)
 
 if (USE_POSTGRESQL)
   find_package(PostgreSQL REQUIRED)
   include_directories(${PostgreSQL_INCLUDE_DIRS})
-  list(APPEND EXTRA_LIBS ${PostgreSQL_LIBRARIES})
-  add_library(output_postgres SHARED output_postgres.c output_postgres.h common.h plugins.h db_common.h)
+  add_library(output_postgres SHARED output_postgres.c output_postgres.h common.h plugins.h db_common.c db_common.h postgres2json.c json.c json.h)
+  target_link_libraries(output_postgres ${PostgreSQL_LIBRARIES})
 endif (USE_POSTGRESQL)
 
 if (USE_SQLITE)
   find_package(SQLite3 REQUIRED)
   include_directories(${SQLITE3_INCLUDE_DIRS})
-  list(APPEND EXTRA_LIBS ${SQLITE3_LIBRARIES})
-  add_library(output_sqlite SHARED output_sqlite.c output_sqlite.h common.h plugins.h db_common.h)
+  add_library(output_sqlite SHARED output_sqlite.c output_sqlite.h common.h plugins.h db_common.c db_common.h sqlite2json.c json.c json.h)
+  target_link_libraries(output_sqlite ${SQLITE3_LIBRARIES})
 endif (USE_SQLITE)
 
 find_package(JSON-C REQUIRED)
@@ -40,14 +36,15 @@ if (USE_GPSD)
 endif (USE_GPSD)
 
 if (BUILD_HTTPD)
+  include_directories(${CMAKE_SOURCE_DIR}/externals/mongoose)
+  add_library(mongoose externals/mongoose/mongoose.c externals/mongoose/mongoose.h)
+  list(APPEND EXTRA_LIBS mongoose)
   list(APPEND SOURCES httpd.c httpd.h)
-  if (USE_SQLITE)
-    list(APPEND SOURCES sqlite.c sqlite.h sqlite2json.c)
-  endif (USE_SQLITE)
-  if (USE_POSTGRESQL)
-    list(APPEND SOURCES postgres.c postgres.h postgres2json.c)
-  endif (USE_POSTGRESQL)
 endif (BUILD_HTTPD)
+
+include_directories(${CMAKE_SOURCE_DIR}/externals/inih)
+add_library(ini externals/inih/ini.c externals/inih/ini.h)
+list(APPEND EXTRA_LIBS ini)
 
 configure_file (
   "${PROJECT_SOURCE_DIR}/config.h.in"

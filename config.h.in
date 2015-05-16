@@ -1,4 +1,4 @@
-#define HTTPD_PORT	   8080
+#define HTTPD_PORT	   "8080"
 #define DOCROOT		   "html"
 
 //#define DEBUG_SERIAL
@@ -11,12 +11,10 @@
 #cmakedefine GPSD_FOUND
 #cmakedefine BUILD_HTTPD
 
-#ifdef POSTGRESQL_FOUND
-  #define DB_POSTGRES "user=nerdobd2 dbname=nerdobd2"
-#endif
-#ifdef SQLITE3_FOUND
-  #define DB_SQLITE "database.sqlite3"
-#endif
+#define DB_POSTGRES "user=nerdobd2 dbname=nerdobd2"
+#define DB_SQLITE "database.sqlite3"
+
+#define INI_CONFIG "config.ini"
 
 /* if the system suspends and then resumes, the kernel tries to newly
  * assign /dev/ttyUSB0 to the USB to serial adapter. this fails, because

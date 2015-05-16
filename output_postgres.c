@@ -1,14 +1,15 @@
 #include "output_postgres.h"
 
-static PGconn *db;
+PGconn *db;
 
 void
-close_db(PGconn * db) {
+close_db() {
     PQfinish(db);
+    db = 0;
 }
 
 int
-exec_query(PGconn * db, char *query) {
+exec_query(char *query) {
     PGresult *res;
 
 #ifdef DEBUG_DB
@@ -40,7 +41,7 @@ exec_query(PGconn * db, char *query) {
             fprintf(stderr, "query '%s' failed (NONFATAL, retrying): %s\n",
                     query, PQerrorMessage(db));
             PQclear(res);
-            return exec_query(db, query);
+            return exec_query(query);
             break;
 
         case PGRES_BAD_RESPONSE:
@@ -55,26 +56,24 @@ exec_query(PGconn * db, char *query) {
 }
 
 
-PGconn *
+bool
 open_db(void) {
-    PGconn *db;
 
     db = PQconnectdb(DB_POSTGRES);
     if (PQstatus(db) != CONNECTION_OK) {
         fprintf(stderr, "Connection to database failed: %s",
                 PQerrorMessage(db));
-        close_db(db);
-        return NULL;
+        close_db();
+        return false;
     }
-
-    return db;
+    return true;
 }
 
 
 void
-init_db(PGconn * db) {
+init_db(void) {
     // create data table
-    exec_query(db, "CREATE TABLE IF NOT EXISTS data ( \
+    exec_query("CREATE TABLE IF NOT EXISTS data ( \
                         id                    SERIAL, \
                         time                  TIMESTAMP, \
                         rpm                   FLOAT, \
@@ -106,7 +105,7 @@ init_db(PGconn * db) {
 
 
     // create table where set point information is stored
-    exec_query(db, "CREATE TABLE IF NOT EXISTS setpoints ( \
+    exec_query("CREATE TABLE IF NOT EXISTS setpoints ( \
                         id          SERIAL, \
                         name        VARCHAR, \
                         time        TIMESTAMP, \
@@ -114,8 +113,7 @@ init_db(PGconn * db) {
 
 
     // since postgres doesn't support replace into, we're defining our own set_setpoints function
-    exec_query(db,
-               "CREATE OR REPLACE FUNCTION set_setpoint(text) RETURNS void AS $$ \
+    exec_query("CREATE OR REPLACE FUNCTION set_setpoint(text) RETURNS void AS $$ \
                BEGIN \
                    IF EXISTS( SELECT name FROM setpoints WHERE name = $1 ) THEN \
                        UPDATE setpoints SET time = current_timestamp, data = ( \
@@ -147,7 +145,7 @@ init_db(PGconn * db) {
 void output_postgres_handle_data(obd_data_t *obd) {
     char query[LEN_QUERY];
 
-    exec_query(db, "BEGIN TRANSACTION");
+    exec_query("BEGIN TRANSACTION");
 
     strncpy(query,
             "INSERT INTO data VALUES ( DEFAULT, current_timestamp",
@@ -155,32 +153,44 @@ void output_postgres_handle_data(obd_data_t *obd) {
     query[sizeof(query) - 1] = '\0';
 
     build_query(query, sizeof(query), obd);
-    exec_query(db, query);
+    exec_query(query);
 
-    exec_query(db, "END TRANSACTION");
+    exec_query("END TRANSACTION");
 }
 
 void output_postgres_set_point(const char* name) {
-    exec_query(db, "SELECT set_setpoint('startup')");
+    exec_query("SELECT set_setpoint('startup')");
 }
 
-void output_postgres_close(void* data) {
+void output_postgres_close() {
     printf("postgres closing\n");
-    close_db(db);
+    close_db();
 }
 
 static struct output_plugin output_postgres_plugin = {
-    .output_handle_data = output_postgres_handle_data,
-    .output_set_point = output_postgres_set_point,
-    .output_close = output_postgres_close
+    .handle_data = output_postgres_handle_data,
+    .set_point = output_postgres_set_point,
+    .close = output_postgres_close
 };
 
 struct output_plugin* output_plugin_load(void)
 {
     printf("output_postgres doing load.\n");
-    if ((db = open_db()) == NULL)
+    if (!open_db())
         return NULL;
-    init_db(db);
+    init_db();
     return &output_postgres_plugin;
 }
 
+static struct query_plugin query_postgres_plugin = {
+    .json_get_data = json_get_data,
+    .json_get_averages = json_get_averages,
+    .json_get_graph_data = json_get_graph_data,
+    .close = output_postgres_close
+};
+
+struct query_plugin* query_plugin_load(void) {
+    if (!open_db())
+        return NULL;
+    return &query_postgres_plugin;
+}

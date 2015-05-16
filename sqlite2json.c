@@ -1,5 +1,8 @@
-#include "httpd.h"
+#include "output_sqlite.h"
+#include "json.h"
 #include <math.h>
+
+extern sqlite3 *db;
 
 // calls add_double, but checks if value actually is a number.
 void
@@ -11,8 +14,8 @@ _add_double(json_object * parent, char *key, sqlite3_stmt * stmt, int column) {
         add_string(parent, key, "null");        // json doesn't support NaN
 }
 
-const char *
-json_get_data(sqlite3 * db) {
+json_object*
+json_get_data(void) {
     json_object *data = json_object_new_object();
 
     char    query[LEN_QUERY];
@@ -81,12 +84,12 @@ json_get_data(sqlite3 * db) {
     }
 
     exec_query(db, "END TRANSACTION");
-    return json_object_to_json_string(data);
+    return data;
 }
 
 
-const char *
-json_get_averages(sqlite3 * db) {
+json_object*
+json_get_averages(void) {
     json_object *data = json_object_new_object();
 
     char    query[LEN_QUERY];
@@ -171,7 +174,7 @@ json_get_averages(sqlite3 * db) {
     }
 
     exec_query(db, "END TRANSACTION");
-    return json_object_to_json_string(data);
+    return data;
 }
 
 
@@ -180,8 +183,8 @@ json_get_averages(sqlite3 * db) {
  * getting all data since id index
  * but not older than timepsan seconds
  */
-const char *
-json_graph_data(sqlite3 * db, char *key, unsigned long int index,
+json_object*
+json_get_graph_data(const char *key, unsigned long int index,
                 unsigned long int timespan) {
     char    query[LEN_QUERY];
     sqlite3_stmt *stmt;
@@ -231,5 +234,5 @@ json_graph_data(sqlite3 * db, char *key, unsigned long int index,
 
     add_int(graph, "index", index);
 
-    return json_object_to_json_string(graph);
+    return graph;
 }

@@ -64,16 +64,23 @@ main(int argc, char **argv) {
     // catch orphans
     signal(SIGCHLD, sig_chld);
 
-    if (!load_output_plugins()) {
-        fprintf(stderr, "Unable to initialize output plugins.\n");
-        return -1;
-    }
-
 #ifdef BUILD_HTTPD
+    // httpd should be started before we load plugins
+    // so that the httpd process does not have any output plugins loaded
     puts("firing up httpd server");
     if ((pid_httpd = httpd_start()) == -1)
         cleanup(15);
 #endif
+
+    if (!load_output_plugins()) {
+        fprintf(stderr, "Unable to initialize output plugins.\n");
+
+#ifdef BUILD_HTTPD
+    if (pid_httpd != -1)
+         kill(pid_httpd, SIGTERM);
+#endif
+        return -1;
+    }
 
 #ifdef GPSD_FOUND
     // collect gps data

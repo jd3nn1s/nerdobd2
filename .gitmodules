@@ -1,0 +1,6 @@
+[submodule "externals/inih"]
+	path = externals/inih
+	url = git@github.com:benhoyt/inih.git
+[submodule "externals/mongoose"]
+	path = externals/mongoose
+	url = git@github.com:cesanta/mongoose.git

@@ -1,5 +1,10 @@
-#include "httpd.h"
+#include "output_postgres.h"
+#include "json.h"
+
 #include <math.h>
+
+extern PGconn* db;
+extern PGconn* sfdsf;
 
 // calls add_double, but checks if value actually is a number.
 void
@@ -14,7 +19,7 @@ _add_double(json_object * parent, char *key, PGresult * res, int column) {
 }
 
 int
-json_query_and_add(PGconn * db, char *query, json_object * data) {
+json_query_and_add(char *query, json_object * data) {
     PGresult *res;
     int     i;
 
@@ -50,7 +55,7 @@ json_query_and_add(PGconn * db, char *query, json_object * data) {
             fprintf(stderr, "query '%s' failed (NONFATAL, retrying): %s\n",
                     query, PQerrorMessage(db));
             PQclear(res);
-            return json_query_and_add(db, query, data);
+            return json_query_and_add(query, data);
             break;
 
         case PGRES_BAD_RESPONSE:
@@ -65,11 +70,11 @@ json_query_and_add(PGconn * db, char *query, json_object * data) {
     return -1;
 }
 
-const char *
-json_get_data(PGconn * db) {
+json_object*
+json_get_data(void) {
     json_object *data = json_object_new_object();
 
-    json_query_and_add(db, "SELECT rpm, speed, injection_time, \
+    json_query_and_add("SELECT rpm, speed, injection_time, \
                 oil_pressure, consumption_per_100km, consumption_per_h, \
                 temp_engine, temp_air_intake, voltage, \
                 gps_mode, \
@@ -81,17 +86,17 @@ json_get_data(PGconn * db) {
          ORDER BY id \
          DESC LIMIT 1", data);
 
-    return json_object_to_json_string(data);
+    return data;
 }
 
 
 // this functino is VERY ressource heavy, needs to be improved
-const char *
-json_get_averages(PGconn * db) {
+json_object*
+json_get_averages(void) {
     json_object *data = json_object_new_object();
 
     // average since last startup
-    if (json_query_and_add(db,
+    if (json_query_and_add(
                            "SELECT   date_part('epoch', setpoints.time) AS timestamp_startup, \
                        SUM(data.speed * data.consumption_per_100km) / SUM(data.speed) AS consumption_average_startup, \
                        SUM(data.liters) AS consumption_liters_startup, \
@@ -115,7 +120,7 @@ json_get_averages(PGconn * db) {
 
 
     // overall consumption average
-    if (json_query_and_add(db,
+    if (json_query_and_add(
                            "SELECT SUM(speed * consumption_per_100km) / SUM(speed) AS consumption_average_total, \
                      SUM(liters) AS consumption_liters_total, \
                      SUM(kilometers) AS kilometers_total \
@@ -124,7 +129,7 @@ json_get_averages(PGconn * db) {
                            data) == -1)
         return NULL;
 
-    return json_object_to_json_string(data);
+    return data;
 }
 
 
@@ -133,8 +138,8 @@ json_get_averages(PGconn * db) {
  * getting all data since id index
  * but not older than timepsan seconds
  */
-const char *
-json_graph_data(PGconn * db, char *key, unsigned long int index,
+json_object*
+json_get_graph_data(const char *key, unsigned long int index,
                 unsigned long int timespan) {
     char    query[LEN_QUERY];
     PGresult *res;
@@ -172,7 +177,7 @@ json_graph_data(PGconn * db, char *key, unsigned long int index,
             }
 
             PQclear(res);
-            return json_object_to_json_string(graph);
+            return graph;
             break;
 
         case PGRES_COMMAND_OK:
@@ -190,7 +195,7 @@ json_graph_data(PGconn * db, char *key, unsigned long int index,
             fprintf(stderr, "query '%s' failed (NONFATAL, retrying): %s\n",
                     query, PQerrorMessage(db));
             PQclear(res);
-            return json_graph_data(db, key, index, timespan);
+            return json_get_graph_data(key, index, timespan);
             break;
 
         case PGRES_BAD_RESPONSE:
@@ -202,5 +207,5 @@ json_graph_data(PGconn * db, char *key, unsigned long int index,
     }
 
     PQclear(res);
-    return NULL;
+    return graph;
 }

@@ -1,6 +1,7 @@
 #include "output_sqlite.h"
+#include "db_common.h"
 
-static sqlite3 *db;
+sqlite3 *db;
 
 static int
 busy(void *unused __attribute__ ((unused)), int count) {
@@ -16,7 +17,7 @@ busy(void *unused __attribute__ ((unused)), int count) {
 
 
 int
-exec_query(sqlite3 * db, char *query) {
+exec_query(char *query) {
     char   *error = NULL;
 
 #ifdef DEBUG_DB
@@ -25,8 +26,12 @@ exec_query(sqlite3 * db, char *query) {
 #endif
 
     if (sqlite3_exec(db, query, NULL, NULL, &error) != SQLITE_OK) {
-        printf("sql error: %s\n", error);
-        sqlite3_free(error);
+        if (error != NULL) {
+            fprintf(stderr, "sql error: %s\n", error);
+            sqlite3_free(error);
+        }
+        else
+            fprintf(stderr, "sql error: unknown\n");
         return -1;
     }
 
@@ -34,35 +39,34 @@ exec_query(sqlite3 * db, char *query) {
 }
 
 
-sqlite3 *
+bool
 open_db(void) {
-    sqlite3 *db;
 
     // open database file
     if (sqlite3_open(DB_SQLITE, &db) != SQLITE_OK) {
-        printf("Coudln't open database: %s", DB_SQLITE);
-        return NULL;
+        printf("Couldn't open database: %s", DB_SQLITE);
+        db = 0;
+        return false;
     }
 
     // retry on busy errors
     sqlite3_busy_handler(db, busy, NULL);
 
     // disable waiting for write to be completed
-    exec_query(db, "PRAGMA synchronous = OFF");
+    exec_query("PRAGMA synchronous = OFF");
 
     // disable journal
-    exec_query(db, "PRAGMA journal_mode = OFF");
-
-    return db;
+    exec_query("PRAGMA journal_mode = OFF");
+    return true;
 }
 
 
 void
-init_db(sqlite3 * db) {
-    exec_query(db, "BEGIN TRANSACTION");
+init_db() {
+    exec_query("BEGIN TRANSACTION");
 
     // create data table
-    exec_query(db, "CREATE TABLE IF NOT EXISTS data ( \
+    exec_query("CREATE TABLE IF NOT EXISTS data ( \
                         id                    INTEGER PRIMARY KEY, \
                         time                  DATE, \
                         rpm                   FLOAT, \
@@ -94,27 +98,25 @@ init_db(sqlite3 * db) {
 
 
     // create table where set point information is stored
-    exec_query(db, "CREATE TABLE IF NOT EXISTS setpoints ( \
+    exec_query("CREATE TABLE IF NOT EXISTS setpoints ( \
                         name        VARCHAR PRIMARY KEY, \
                         time        DATE, \
                         data        INTEGER)");
 
-    exec_query(db, "END TRANSACTION");
+    exec_query("END TRANSACTION");
 
     return;
 }
 
-
-
 void
-close_db(sqlite3 * db) {
+close_db() {
     sqlite3_close(db);
 }
 
 void output_sqlite_handle_data(obd_data_t *obd) {
     char query[LEN_QUERY];
 
-    exec_query(db, "BEGIN TRANSACTION");
+    exec_query("BEGIN TRANSACTION");
 
     strncpy(query,
             "INSERT INTO data VALUES ( NULL, DATETIME('now', 'localtime')",
@@ -122,13 +124,13 @@ void output_sqlite_handle_data(obd_data_t *obd) {
     query[sizeof(query) - 1] = '\0';
 
     build_query(query, sizeof(query), obd);
-    exec_query(db, query);
+    exec_query(query);
 
-    exec_query(db, "END TRANSACTION");
+    exec_query("END TRANSACTION");
 }
 
 void output_sqlite_set_point(const char* name) {
-    exec_query(db, "INSERT OR REPLACE INTO setpoints VALUES ( \
+    exec_query("INSERT OR REPLACE INTO setpoints VALUES ( \
                    'startup', DATETIME('now', 'localtime'), ( \
                    SELECT CASE WHEN count(*) = 0 \
                    THEN 0 \
@@ -139,23 +141,33 @@ void output_sqlite_set_point(const char* name) {
                )");
 }
 
-void output_sqlite_close(void* data) {
-    printf("sqlite closing\n");
-    close_db(db);
+void output_sqlite_close(void) {
+    printf("sqlite closing.\n");
+    close_db();
 }
 
 static struct output_plugin output_sqlite_plugin = {
-    .output_handle_data = output_sqlite_handle_data,
-    .output_set_point = output_sqlite_set_point,
-    .output_close = output_sqlite_close
+    .handle_data = output_sqlite_handle_data,
+    .set_point = output_sqlite_set_point,
+    .close = output_sqlite_close,
 };
 
-struct output_plugin* output_plugin_load(void)
-{
-    printf("output_sqlite doing load.\n");
-    if ((db = open_db()) == NULL)
+static struct query_plugin query_sqlite_plugin = {
+    .json_get_data = json_get_data,
+    .json_get_averages = json_get_averages,
+    .json_get_graph_data = json_get_graph_data,
+    .close = output_sqlite_close
+};
+
+struct output_plugin* output_plugin_load(void) {
+    if (!open_db())
         return NULL;
     init_db(db);
     return &output_sqlite_plugin;
 }
 
+struct query_plugin* query_plugin_load(void) {
+    if (!open_db())
+        return NULL;
+    return &query_sqlite_plugin;
+}

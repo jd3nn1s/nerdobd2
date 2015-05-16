@@ -12,9 +12,9 @@ void output_test_close(void* data) {
 }
 
 static struct output_plugin output_test_plugin = {
-    .output_handle_data = output_test_handle_data,
-    .output_set_point = 0,
-    .output_close = 0
+    .handle_data = output_test_handle_data,
+    .set_point = 0,
+    .close = 0
 };
 
 struct output_plugin* output_plugin_load(void)
