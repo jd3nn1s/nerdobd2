@@ -10,6 +10,8 @@
 #include "plugins.h"
 #include "config.h"
 
+int exec_query(char *query);
+
 json_object* json_get_data();
 json_object* json_get_averages();
 json_object* json_get_graph_data(const char *, unsigned long int, unsigned long int);

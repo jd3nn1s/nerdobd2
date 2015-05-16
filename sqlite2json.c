@@ -21,7 +21,7 @@ json_get_data(void) {
     char    query[LEN_QUERY];
     sqlite3_stmt *stmt;
 
-    exec_query(db, "BEGIN TRANSACTION");
+    exec_query("BEGIN TRANSACTION");
 
     // query data
     snprintf(query, sizeof(query), "SELECT rpm, speed, injection_time, \
@@ -83,7 +83,7 @@ json_get_data(void) {
         return NULL;
     }
 
-    exec_query(db, "END TRANSACTION");
+    exec_query("END TRANSACTION");
     return data;
 }
 
@@ -95,7 +95,7 @@ json_get_averages(void) {
     char    query[LEN_QUERY];
     sqlite3_stmt *stmt;
 
-    exec_query(db, "BEGIN TRANSACTION");
+    exec_query("BEGIN TRANSACTION");
 
     // average since last startup
     snprintf(query, sizeof(query),
@@ -173,7 +173,7 @@ json_get_averages(void) {
         return NULL;
     }
 
-    exec_query(db, "END TRANSACTION");
+    exec_query("END TRANSACTION");
     return data;
 }
 
@@ -192,7 +192,7 @@ json_get_graph_data(const char *key, unsigned long int index,
     json_object *graph = json_object_new_object();
     json_object *data = add_array(graph, "data");
 
-    exec_query(db, "BEGIN TRANSACTION");
+    exec_query("BEGIN TRANSACTION");
 
     snprintf(query, sizeof(query), "SELECT id, strftime('%%s000', time), %s \
               FROM   data \
@@ -230,7 +230,7 @@ json_get_graph_data(const char *key, unsigned long int index,
         return NULL;
     }
 
-    exec_query(db, "END TRANSACTION");
+    exec_query("END TRANSACTION");
 
     add_int(graph, "index", index);
 
