@@ -6,7 +6,7 @@
 
 #include <easywsclient.hpp>
 
-#define WS_URL "ws://localhost/ws"
+#define WS_URL "ws://localhost/ws/telemetry_in"
 
 extern "C" {
     #include "plugins.h"
@@ -16,10 +16,6 @@ extern "C" {
 using easywsclient::WebSocket;
 
 WebSocket::pointer ws = NULL;
-
-void handle_message(const std::string & message) {
-    printf("ws: >>> %s\n", message.c_str());
-}
 
 void handle_binary_message(const std::vector<uint8_t>& message) {
     printf("ws: got binary message\n");
@@ -46,7 +42,6 @@ void output_ws_handle_data(obd_data_t *obd) {
     ws->sendBinary(buf);
 
     ws->poll();
-    ws->dispatch(handle_message);
     ws->dispatchBinary(handle_binary_message);
 }
 
