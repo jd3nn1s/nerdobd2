@@ -10,9 +10,7 @@
 static FILE* csv_fh;
 
 void output_double(double val, bool delimiter) {
-    char buf[128];
-    snprintf(buf, sizeof(buf), "%f", val);
-    csv_fwrite(csv_fh, buf, strlen(buf));
+    fprintf(csv_fh, "%f", val);
     if (delimiter)
         fputc(',', csv_fh);
 }

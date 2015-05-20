@@ -4,9 +4,6 @@
 [submodule "externals/mongoose"]
 	path = externals/mongoose
 	url = git@github.com:cesanta/mongoose.git
-[submodule "externals/libcsv"]
-	path = externals/libcsv
-	url = git@github.com:robertpostill/libcsv.git
 [submodule "externals/easywsclient"]
 	path = externals/easywsclient
 	url = git@github.com:dhbaird/easywsclient.git
