@@ -7,3 +7,6 @@
 [submodule "externals/easywsclient"]
 	path = externals/easywsclient
 	url = git@github.com:dhbaird/easywsclient.git
+[submodule "externals/vag-rosetta"]
+	path = externals/vag-rosetta
+	url = git@github.com:jd3nn1s/vag-rosetta.git
