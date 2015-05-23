@@ -46,13 +46,16 @@ include_directories(${CMAKE_SOURCE_DIR}/externals/inih)
 add_library(ini externals/inih/ini.c externals/inih/ini.h)
 list(APPEND EXTRA_LIBS ini)
 
+add_subdirectory(${CMAKE_SOURCE_DIR}/externals/vag-rosetta)
+include_directories(${CMAKE_SOURCE_DIR}/externals/vag-rosetta)
+
 configure_file (
   "${PROJECT_SOURCE_DIR}/config.h.in"
   "${PROJECT_BINARY_DIR}/config.h"
   )
 
 add_executable(nerdobd2 ${SOURCES})
-target_link_libraries (nerdobd2 ${EXTRA_LIBS} dl)
+target_link_libraries (nerdobd2 ${EXTRA_LIBS} dl vag-rosetta)
 
 add_library(output_csv SHARED output_csv.c common.h plugins.h)
 
