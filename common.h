@@ -31,3 +31,11 @@ typedef struct obd_data_t {
 #endif
 
 } obd_data_t;
+
+#define FIELD_THROTTLE_ANGLE 1
+#define FIELD_INTAKE_AIR 2
+#define FIELD_RPM 3
+#define FIELD_SPEED 4
+#define FIELD_BATTERY 5
+#define FIELD_COOLANT_TEMP 6
+#define FIELD_INJECTION_TIME 7

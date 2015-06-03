@@ -30,7 +30,7 @@
  */
 #define DEVICE          "/dev/obd2"
 
-#define BAUDRATE        10400   // for my seat arosa, vw polo needs 9600
+#define BAUDRATE        9600   // for my seat arosa, vw polo needs 9600
 #define INIT_DELAY      200000  // nanosec to wait to emulate 5baud
 
 /* constants for calculating consumption

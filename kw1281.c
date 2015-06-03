@@ -1,33 +1,61 @@
+#include <stdio.h>
+#include <errno.h>
+#include <asm/termios.h>
+#include <asm/ioctls.h>
+#include <vag-rosetta.h>
+#include <math.h>
+
 #include "kw1281.h"
 #include "core.h"
+
 
 static void _set_bit(int);
 
 int     kw1281_send_byte_ack(unsigned char);
 int     kw1281_sendprintf_ack(void);
 int     kw1281_send_block(unsigned char);
-int     kw1281_recv_block(unsigned char);
+int     kw1281_recv_block(struct block_t*);
 int     kw1281_send_ack(void);
 int     kw1281_recv_byte_ack(void);
 int     kw1281_inc_counter(void);
 int     kw1281_get_ascii_blocks(void);
-int     kw1281_get_block(unsigned char);
+int     kw1281_get_block(struct block_t*);
 int     kw1281_empty_buffer(void);
 int     kw1281_read_timeout(void);
 int     kw1281_write_timeout(unsigned char c);
 void    kw1281_print(void);
-void    kw1281_restore(void);
 
-int     fd = -1;
-int     counter;                // kw1281 protocol block counter
-char    got_ack = 0;            // flag (true if ECU send ack block, thus ready to receive block requests)
-int     loopcount;              // counter for mainloop
+int      fd = -1;
+uint8_t  counter = 0;            // kw1281 protocol block counter
+char     got_ack = 0;            // flag (true if ECU send ack block, thus ready to receive block requests)
+uint32_t loopcount;              // counter for mainloop
+
+#define PARTID1 "021906258"
+
+static struct block_t block1[] = {{
+    .block = 0x03,
+    .modulus_value = 1,
+    .fields = {{FIELD_RPM, 1}, {FIELD_THROTTLE_ANGLE, 3}, {FIELD_INTAKE_AIR, 4}}
+},{
+    .block = 0x04,
+    .modulus_value = 1,
+    .fields = {{FIELD_RPM, 1}, {FIELD_SPEED, 3}}
+},{
+    .block = 0x02,
+    .modulus_value = 15,
+    .fields = {{FIELD_RPM, 1}, {FIELD_BATTERY, 3}, {FIELD_INJECTION_TIME, 2}}
+},{
+    .block = 0x01,
+    .modulus_value = 3,
+    .fields = {{FIELD_RPM, 1}, {FIELD_COOLANT_TEMP, 2}}
+}, {0}};
+
+static struct block_t* activeblock;
 
 
 // save old values
-struct termios oldtio;
-struct serial_struct ot, st;
-int     oldflags = -1;
+struct termios2 oldtio;
+int oldflags = -1;
 
 
 // read 1024 bytes with 200ms timeout
@@ -195,17 +223,10 @@ _set_bit(int bit) {
     ioctl(fd, TIOCMSET, &flags);
 }
 
-// increment the counter
+// increment the counter, relies on unsigned integer modulo behaviour
 int
 kw1281_inc_counter(void) {
-    if (counter == 255) {
-        counter = 1;
-        return 255;
-    }
-    else
-        counter++;
-
-    return counter - 1;
+    return counter++;
 }
 
 /* receive one byte and acknowledge it */
@@ -381,13 +402,23 @@ kw1281_send_block(unsigned char n) {
     return 0;
 }
 
+float convert_value(vag_value* value) {
+    switch(value->type) {
+    case TYPE_INT:
+        return value->i;
+    case TYPE_FLOAT:
+        return value->f;
+    default:
+        return NAN;
+    }
+}
 
 struct timeval consumption_start, consumption_stop;
 struct timeval speed_start, speed_stop;
 
 /* receive a complete block */
 int
-kw1281_recv_block(unsigned char n) {
+kw1281_recv_block(struct block_t* block) {
     int     i;
 
     // we need int, so we can capture -1 as well
@@ -421,13 +452,6 @@ kw1281_recv_block(unsigned char n) {
         printf("     0x%02x\t(ack)\n", 0xff - l);
         printf("0x%02x\t\t(counter)\n", c);
         printf("     0x%02x\t(ack)\n", 0xff - c);
-        /*
-         * while (1) {
-         * c = kw1281_recv_byte_ack();
-         * printf("0x%02x\t\t(data)\n", c);
-         * printf("     0x%02x\t(ack)\n", 0xff - c);
-         * }
-         */
 #endif
 
         return -1;
@@ -473,6 +497,7 @@ kw1281_recv_block(unsigned char n) {
 #endif
 
     }
+
     buf[i] = 0;
 
 #ifdef DEBUG_SERIAL
@@ -480,105 +505,43 @@ kw1281_recv_block(unsigned char n) {
         printf("= \"%s\"\n", buf);
 #endif
 
-    if (t == 0xe7) {
-
-        // look at field headers 0, 3, 6, 9
-        for (i = 0; i <= 9; i += 3) {
-            switch (buf[i]) {
-                case 0x01:     // rpm
-                    if (i == 0)
-                        handle_data("rpm", 0.2 * buf[i + 1] * buf[i + 2], 0);
-                    break;
-
-                    /* can't calculate load properly, thus leaving it alone
-                     * case 0x21:        // load
-                     * if (i == 0)
-                     * {
-                     * if (buf[i + 1] == 0)
-                     * load = 100;
-                     * else
-                     * load = 100 * buf[i + 2] / buf[i + 1];
-                     * }
-                     * break;
-                     */
-
-                case 0x0f:     // injection time
-
-                    if (!consumption_first_run) {
-                        gettimeofday(&consumption_stop, NULL);
-                        duration_consumption =
-                            (float) ((consumption_stop.tv_sec +
-                                      (consumption_stop.tv_usec * 0.000001)) -
-                                     (consumption_start.tv_sec +
-                                      (consumption_start.tv_usec *
-                                       0.000001)));
-                    }
-                    consumption_first_run = 0;
-                    gettimeofday(&consumption_start, NULL);
-
-                    handle_data("injection_time",
-                                0.01 * buf[i + 1] * buf[i + 2],
-                                duration_consumption);
-
-                    break;
-
-                case 0x12:     // absolute pressure
-                    handle_data("oil_pressure",
-                                0.04 * buf[i + 1] * buf[i + 2], 0);
-                    break;
-
-                case 0x05:     // temperature
-                    if (i == 6)
-                        handle_data("temp_engine",
-                                    buf[i + 1] * (buf[i + 2] - 100) * 0.1, 0);
-                    if (i == 9)
-                        handle_data("temp_air_intake",
-                                    buf[i + 1] * (buf[i + 2] - 100) * 0.1, 0);
-                    break;
-
-                case 0x07:     // speed
-
-                    if (!speed_first_run) {
-                        gettimeofday(&speed_stop, NULL);
-                        duration_speed =
-                            (float) ((speed_stop.tv_sec +
-                                      (speed_stop.tv_usec * 0.000001)) -
-                                     (speed_start.tv_sec +
-                                      (speed_start.tv_usec * 0.000001)));
-                    }
-                    speed_first_run = 0;
-                    gettimeofday(&speed_start, NULL);
-
-                    handle_data("speed", 0.01 * buf[i + 1] * buf[i + 2],
-                                duration_speed);
-
-                    break;
-
-                case 0x15:     // battery voltage
-                    handle_data("voltage", 0.001 * buf[i + 1] * buf[i + 2],
-                                0);
-                    break;
-                    /*
-                     * case 0x13:        // tank content
-                     * handle_data("tank_content", 0.01 * buf[i + 1] * buf[i + 2]);
-                     * break;
-                     */
-
-                default:
-#ifdef DEBUG_SERIAL
-                    printf("unknown value: 0x%02x: a = %d, b = %d\n",
-                           buf[i], buf[i + 1], buf[i + 2]);
-#endif
-                    break;
-            }
-
-        }
-
+    if (t == 0xf6 && activeblock == 0) {
+        if (!strncmp(buf, PARTID1, strlen(PARTID1)))
+            activeblock = block1;
     }
+    else if (t == 0xe7 && block) {
 #ifdef DEBUG_SERIAL
-    else
         printf("\n");
 #endif
+        char (*field)[2] = block->fields;
+        for (;*field[0]; field++) {
+            char type = (*field)[0];
+            char index = (*field)[1];
+
+            vag_value value;
+            if (!decode_value(buf + ((index - 1) *  3), &value)) {
+#ifdef DEBUG_SERIAL
+                fprintf(stderr, "Unable to decode value\n");
+#endif
+                continue;
+            }
+
+#ifdef DEBUG_SERIAL
+            print_value(&value);
+#endif
+
+            switch(type) {
+            case FIELD_THROTTLE_ANGLE:
+            case FIELD_INTAKE_AIR:
+            case FIELD_RPM:
+            case FIELD_SPEED:
+            case FIELD_BATTERY:
+            case FIELD_COOLANT_TEMP:
+                block_handle_field(type, convert_value(&value));
+            }
+        }
+        block_complete();
+    }
 
     /* read block end */
     if ((c = kw1281_read_timeout()) == -1) {
@@ -606,13 +569,13 @@ kw1281_recv_block(unsigned char n) {
 }
 
 int
-kw1281_get_block(unsigned char n) {
-    if (kw1281_send_block(n) == -1) {
+kw1281_get_block(struct block_t* block) {
+    if (kw1281_send_block(block->block) == -1) {
         printf("kw1281_get_block() error\n");
         return -1;
     }
 
-    if (kw1281_recv_block(n) == -1) {
+    if (kw1281_recv_block(block) == -1) {
         printf("kw1281_get_block() error\n");
         return -1;
     }
@@ -625,7 +588,7 @@ kw1281_get_ascii_blocks(void) {
     got_ack = 0;
 
     while (!got_ack) {
-        if (kw1281_recv_block(0x00) == -1)
+        if (kw1281_recv_block(NULL) == -1)
             return -1;
 
         if (!got_ack)
@@ -633,12 +596,17 @@ kw1281_get_ascii_blocks(void) {
                 return -1;
     }
 
+    if (activeblock == 0) {
+        fprintf(stderr, "Error: Unknown ECU part number.\n");
+        return -1;
+    }
+
     return 0;
 }
 
 int
 kw1281_open(char *device) {
-    struct termios newtio;
+    struct termios2 newtio = {0};
 
     // open the serial device
     if ((fd = open(device, O_SYNC | O_RDWR | O_NOCTTY)) < 0) {
@@ -647,62 +615,23 @@ kw1281_open(char *device) {
         return -1;
     }
 
-    if (ioctl(fd, TIOCGSERIAL, &ot) < 0) {
-        printf("getting tio failed\n");
-        return -1;
-    }
-    memcpy(&st, &ot, sizeof(st));
+    ioctl(fd, TCGETS2, &oldtio);
 
-    // setting custom baud rate
-    st.custom_divisor = st.baud_base / BAUDRATE;
-    st.flags &= ~ASYNC_SPD_MASK;
-    st.flags |= ASYNC_SPD_CUST | ASYNC_LOW_LATENCY;
-    if (ioctl(fd, TIOCSSERIAL, &st) < 0) {
-        printf("TIOCSSERIAL failed\n");
-        return -1;
-    }
-
-    tcgetattr(fd, &oldtio);
-
-    newtio.c_cflag = B38400 | CLOCAL | CREAD;   // 38400 baud, so custom baud rate above works
+    newtio.c_cflag = BOTHER | CLOCAL | CREAD;
     newtio.c_iflag = IGNPAR;    // ICRNL provokes bogus replys after block 12
     newtio.c_oflag = 0;
+    newtio.c_ispeed = BAUDRATE;
+    newtio.c_ospeed = BAUDRATE;
     newtio.c_cc[VMIN] = 1;
     newtio.c_cc[VTIME] = 0;
 
     tcflush(fd, TCIFLUSH);
-    if (tcsetattr(fd, TCSANOW, &newtio) == -1) {
-        printf("tcsetattr() failed.\n");
+    if (ioctl(fd, TCSETS2, &newtio) != 0) {
+        printf("tcset() failed.\n");
         return -1;
     }
 
     return 0;
-}
-
-
-void
-kw1281_restore(void) {
-    if (ioctl(fd, TIOCSSERIAL, &ot) < 0) {
-#ifdef DEBUG_SERIAL
-        printf("TIOCSSERIAL failed\n");
-#endif
-    }
-
-    // allow buffer to drain, discard input
-    // TCSADRAIN for only letting it drain
-    if (tcsetattr(fd, TCSAFLUSH, &oldtio) == -1) {
-#ifdef DEBUG_SERIAL
-        printf("tcsetattr() failed.\n");
-#endif
-    }
-
-    if (ioctl(fd, TIOCMSET, &oldflags) < 0) {
-#ifdef DEBUG_SERIAL
-        printf("TIOCMSET failed.\n");
-#endif
-    }
-
-    return;
 }
 
 // restore old serial configuration and close port
@@ -710,8 +639,6 @@ int
 kw1281_close(void) {
     if (fd == -1)
         return 0;
-
-    kw1281_restore();
 
     if (close(fd))
         perror("close");
@@ -725,9 +652,9 @@ kw1281_init(int address, int state) {
     int     i, p, flags;
 
     int     c;                  // we need int so we can capture -1 as well
-    // unsigned char c;
     int     in;
 
+    counter = 1;
 
 #ifdef DEBUG_SERIAL
     printf("emptying buffer...\n");
@@ -743,10 +670,6 @@ kw1281_init(int address, int state) {
 
     // wait the idle time
     usleep(300000);
-
-    // restore saved flags (on serial hard error, e.g. usb disconnect)
-    if (state == SERIAL_HARD_ERROR && oldflags != -1)
-        kw1281_restore();
 
     // prepare to send (clear dtr and rts)
     if (ioctl(fd, TIOCMGET, &flags) < 0) {
@@ -837,42 +760,31 @@ kw1281_init(int address, int state) {
     printf("read 0x%02x (and sent ack)\n", c);
 #endif
 
-    counter = 1;
-
     return 0;
 }
 
 int
 kw1281_mainloop(void) {
+    int ret;
 #ifdef DEBUG_SERIAL
     printf("receive blocks\n");
 #endif
-
 
     if (kw1281_get_ascii_blocks() == -1)
         return -1;
 
     printf("init done.\n");
+
     for (loopcount = 0;; loopcount++) {
-        // don't request temperatures and voltage too often
-        if (!(loopcount % 15)) {
-            // request block 0x04
-            // (temperatures + voltage)
-            if (kw1281_get_block(0x04) == -1)
-                return -1;
+        
+        struct block_t* loopblock = activeblock;
+
+        for(;loopblock->block; loopblock++) {
+            if (loopcount % loopblock->modulus_value)
+                continue;
+            if ((ret = kw1281_get_block(loopblock)) != 0)
+                return ret;
         }
-
-        // request block 0x02
-        // (inj_time, rpm, load, oil_press)
-        if (kw1281_get_block(0x02) == -1)
-            return -1;
-
-        // request block 0x05
-        // (speed)
-        if (kw1281_get_block(0x05) == -1)
-            return -1;
-
     }
-
     return 0;
 }

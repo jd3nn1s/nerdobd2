@@ -24,4 +24,5 @@
 #   include "gps.h"
 #endif
 
-void    handle_data(char *, float, float);
+void block_handle_field(int, float);
+void output_data(void);

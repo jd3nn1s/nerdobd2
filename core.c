@@ -100,17 +100,16 @@ main(int argc, char **argv) {
     // for testing purposes
     int     i = 0, flag = 0;
     for (;;) {
-        handle_data("rpm", 1000 + i * 100, 0);
-        handle_data("injection_time", 0.15 * i, 1);
-        handle_data("oil_pressure", i, 0);
-        handle_data("temp_engine", 90, 0);
-        handle_data("temp_air_intake", 35, 0);
-        handle_data("voltage", 0.01 * i, 0);
+        block_handle_field(FIELD_RPM, 1000 + i * 100);
+        block_handle_field(FIELD_INJECTION_TIME, 0.15 * i);
+        block_handle_field(FIELD_COOLANT_TEMP, 90);
+        block_handle_field(FIELD_INTAKE_AIR, 35);
+        block_handle_field(FIELD_BATTERY, 0.1 * i);
 
         if (!i % 15)
-            handle_data("speed", 0, 1);
+            block_handle_field(FIELD_SPEED, 0);
         else
-            handle_data("speed", 3 * i, 1);
+            block_handle_field(FIELD_SPEED, 3 * i);
 
         usleep(300000);
 
@@ -194,47 +193,31 @@ insert_data(obd_data_t obd) {
 obd_data_t obd_data;
 
 void
-handle_data(char *name, float value, float duration) {
-    /* first block gets rpm, injection time, oil pressure
-     * second block gets speed
-     * third block gehts voltage and temperatures (not as often requested)
-     */
+block_handle_field(int type, float value) {
 
-    if (!strcmp(name, "temp_engine"))
+    switch (type) {
+    case FIELD_COOLANT_TEMP:
         obd_data.temp_engine = value;
-    else if (!strcmp(name, "temp_air_intake"))
+        break;
+    case FIELD_INTAKE_AIR:
         obd_data.temp_air_intake = value;
-    else if (!strcmp(name, "voltage"))
+        break;
+    case FIELD_BATTERY:
         obd_data.voltage = value;
-
-    else if (!strcmp(name, "rpm"))
+        break;
+    case FIELD_RPM:
         obd_data.rpm = value;
-    else if (!strcmp(name, "injection_time")) {
+        break;
+    case FIELD_INJECTION_TIME:
         obd_data.injection_time = value;
-        obd_data.duration_consumption = duration;
-    }
-    else if (!strcmp(name, "oil_pressure"))
-        obd_data.oil_pressure = value;
-
-    // everytime we get speed, calculate consumption
-    // end send data to output plugins
-    else if (!strcmp(name, "speed")) {
+        // obd_data.duration_consumption = duration;
+        break;
+    case FIELD_SPEED:
         obd_data.speed = value;
-
-        // calculate consumption per hour
-        obd_data.consumption_per_h =
-            MULTIPLIER * obd_data.rpm * obd_data.injection_time;
-
-        // calculate consumption per 100km
-        if (obd_data.speed > 0)
-            obd_data.consumption_per_100km =
-                obd_data.consumption_per_h / obd_data.speed * 100;
-        else
-            obd_data.consumption_per_100km = NAN;
-
-
-        obd_data.duration_speed = duration;
-
-        insert_data(obd_data);
+        break;
     }
+}
+
+void block_complete(void) {
+    insert_data(obd_data);
 }

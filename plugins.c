@@ -25,7 +25,7 @@ static int output_ini_handler(void* user, const char* section, const char* name,
 bool load_output_plugins(void) {
     bool error;
     printf("Loading output plugins...\n");
-    error = (ini_parse(INI_CONFIG, output_ini_handler, NULL) > 0);
+    error = (ini_parse(INI_CONFIG, output_ini_handler, NULL) < 0);
     if (error)
         fprintf(stderr, "Unable to load output plugins!\n");
     return !error;
@@ -56,7 +56,7 @@ bool load_query_plugin(void)
 {
     bool error;
     printf("Loading query plugin...\n");
-    error = (ini_parse(INI_CONFIG, query_ini_handler, NULL) > 0);
+    error = (ini_parse(INI_CONFIG, query_ini_handler, NULL) < 0);
     if (error || loaded_query_plugin_struct == NULL) {
         fprintf(stderr, "Unable to load query plugin!\n");
         return false;
