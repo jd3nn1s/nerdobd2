@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <iostream>
 #include <ini.h>
+#include <resolv.h>
 
 #include <easywsclient.hpp>
 
@@ -39,6 +40,7 @@ void output_ws_handle_data(obd_data_t *obd) {
 
     if (!ws || ws->getReadyState() == WebSocket::CLOSED) {
         delete ws;
+        res_init();
         ws = WebSocket::from_url(url);
         if (!ws)
             return;
@@ -65,9 +67,9 @@ void output_ws_close() {
 }
 
 static struct output_plugin output_ws_plugin = {
-    .handle_data = output_ws_handle_data,
-    .set_point = 0,
-    .close = output_ws_close
+    output_ws_handle_data,
+    0,
+    output_ws_close
 };
 
 struct output_plugin* output_plugin_load(void) {
