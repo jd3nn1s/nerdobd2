@@ -32,7 +32,7 @@ if (USE_GPSD)
   find_package(GPSD REQUIRED)
   include_directories(${GPSD_INCLUDE_DIRS})
   list(APPEND EXTRA_LIBS ${GPSD_LIBRARIES})
-  list(APPEND SOURCES gps.c gps.h)
+  list(APPEND SOURCES gpsd.c gpsd.h)
 endif (USE_GPSD)
 
 if (BUILD_HTTPD)

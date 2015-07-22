@@ -2,6 +2,8 @@
  * thank you, gpsd team!
  */
 #include "gps.h"
+#include <errno.h>
+#include <string.h>
 
 static struct gps_data_t gpsdata;
 char    gps_available = 0;
