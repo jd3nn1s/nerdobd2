@@ -1,4 +1,4 @@
-#include <json/json.h>
+#include <json-c/json.h>
 
 // json helper functions
 json_object *add_string(json_object *, char *, char *);

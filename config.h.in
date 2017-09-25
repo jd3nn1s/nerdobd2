@@ -25,10 +25,10 @@
  *
  * SUBSYSTEMS=="usb", ATTRS{serial}=="A600bj0A", KERNEL=="ttyUSB*", SYMLINK+="obd2"
  *
- * assigning the USB to serial adapter the fixed symlink /dev/obd2.
+ * assigning the USB to serial adapter the fixed symlink /dev/obd.
  * find out your serial by using lsusb -v.
  */
-#define DEVICE          "/dev/obd2"
+#define DEVICE          "/dev/obd"
 
 #define BAUDRATE        9600   // for my seat arosa, vw polo needs 9600
 #define INIT_DELAY      200000  // nanosec to wait to emulate 5baud

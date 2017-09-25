@@ -1,11 +1,20 @@
 #include "core.h"
+#include <pthread.h>
 
-void    cleanup(int);
-char    cleaning_up = 0;
+void cleanup(int);
+char cleaning_up = 0;
+
+static pthread_t output_thread;
+static const int output_delay_usec = 50 * 1000;
 
 #ifdef BUILD_HTTPD
 pid_t   pid_httpd = -1;
 #endif
+
+// this struct collects all engine data
+// before sending it to the output plugins
+obd_data_t obd_data;
+static pthread_mutex_t obd_data_lock = PTHREAD_MUTEX_INITIALIZER;
 
 void
 wait4childs(void) {
@@ -16,7 +25,6 @@ wait4childs(void) {
     return;
 }
 
-
 void
 cleanup(int signo) {
     // if we're already cleaning up, do nothing
@@ -24,6 +32,13 @@ cleanup(int signo) {
         return;
 
     cleaning_up = 1;
+
+    if (output_thread) {
+        puts("stopping output thread...");
+        pthread_cancel(output_thread);
+        pthread_join(output_thread, NULL);
+        puts("output thread stopped.");
+    }
 
 #ifdef BUILD_HTTPD
     // shutdown httpd
@@ -37,6 +52,8 @@ cleanup(int signo) {
     // close serial port
     printf("shutting down serial port...\n");
     kw1281_close();
+
+    gps_stop();
 
     // wait for all child processes
     printf("waiting for child processes to finish...\n");
@@ -56,6 +73,19 @@ sig_chld(int signo) {
     return;
 }
 
+static void* output_telemetry(void* arg) {
+    while (1) {
+        obd_data_t tmp_data = obd_data;
+
+        pthread_mutex_lock(&obd_data_lock);
+        tmp_data = obd_data;
+        pthread_mutex_unlock(&obd_data_lock);
+
+        output_plugins_handle_data(&tmp_data);
+
+        usleep(output_delay_usec);
+    }
+}
 
 int
 main(int argc, char **argv) {
@@ -82,18 +112,26 @@ main(int argc, char **argv) {
         return -1;
     }
 
-#ifdef GPSD_FOUND
     // collect gps data
-    if (gps_start() == 0)
-        puts("gpsd connection established, collecting gps data");
+    if (gps_start(&obd_data, &obd_data_lock))
+        puts("gps thread started");
     else
-        puts("gps data not available");
-#endif
+        perror("gps data not available");
+
+    // collect arduino data
+    if (secondary_telemetry_start(&obd_data, &obd_data_lock))
+        puts("secondary telemetry thread started");
+    else
+        perror("secondary telemetry thread could not start");
+
+    if (pthread_create(&output_thread, NULL, output_telemetry, 0)) {
+        perror("unable to create output thread");
+        cleanup(15);
+    }
 
     // add signal handler for cleanup function
     signal(SIGINT, cleanup);
     signal(SIGTERM, cleanup);
-
 
 #ifdef TEST
     output_plugins_set_point("startup");
@@ -101,10 +139,10 @@ main(int argc, char **argv) {
     int     i = 0, flag = 0;
     for (;;) {
         block_handle_field(FIELD_RPM, 1000 + i * 100);
-        block_handle_field(FIELD_INJECTION_TIME, 0.15 * i);
-        block_handle_field(FIELD_COOLANT_TEMP, 90);
+        //block_handle_field(FIELD_COOLANT_TEMP, 90);
         block_handle_field(FIELD_INTAKE_AIR, 35);
         block_handle_field(FIELD_BATTERY, 0.1 * i);
+        block_handle_field(FIELD_THROTTLE_ANGLE, i);
 
         if (!i % 15)
             block_handle_field(FIELD_SPEED, 0);
@@ -169,7 +207,6 @@ main(int argc, char **argv) {
             printf("errors. restarting...\n");
             continue;
         }
-
     }
 
     // should never be reached
@@ -177,27 +214,12 @@ main(int argc, char **argv) {
 }
 
 void
-insert_data(obd_data_t obd) {
-
-#ifdef GPSD_FOUND
-   static struct gps_fix_t gps;
-   if (get_gps_data(&gps) == 0)
-       obd.gps = gps;
-#endif
-
-    output_plugins_handle_data(&obd);
-}
-
-// this struct collects all engine data
-// before sending it to the output plugins
-obd_data_t obd_data;
-
-void
 block_handle_field(int type, float value) {
 
+    pthread_mutex_lock(&obd_data_lock);
     switch (type) {
     case FIELD_COOLANT_TEMP:
-        obd_data.temp_engine = value;
+        obd_data.temp_coolant = value;
         break;
     case FIELD_INTAKE_AIR:
         obd_data.temp_air_intake = value;
@@ -208,16 +230,12 @@ block_handle_field(int type, float value) {
     case FIELD_RPM:
         obd_data.rpm = value;
         break;
-    case FIELD_INJECTION_TIME:
-        obd_data.injection_time = value;
-        // obd_data.duration_consumption = duration;
-        break;
     case FIELD_SPEED:
         obd_data.speed = value;
         break;
+    case FIELD_THROTTLE_ANGLE:
+        obd_data.throttle_angle = value;
+        break;
     }
-}
-
-void block_complete(void) {
-    insert_data(obd_data);
+    pthread_mutex_unlock(&obd_data_lock);
 }

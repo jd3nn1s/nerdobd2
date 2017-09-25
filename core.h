@@ -20,9 +20,5 @@
 #   include "httpd.h"
 #endif
 
-#ifdef GPSD_FOUND
-#   include "gps.h"
-#endif
-
 void block_handle_field(int, float);
 void output_data(void);

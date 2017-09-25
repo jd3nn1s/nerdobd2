@@ -5,6 +5,7 @@
 #include <iostream>
 #include <ini.h>
 #include <resolv.h>
+#include <unistd.h>
 
 #include <easywsclient.hpp>
 
@@ -35,9 +36,6 @@ void handle_binary_message(const std::vector<uint8_t>& message) {
 }
 
 void output_ws_handle_data(obd_data_t *obd) {
-    struct timeval tv;
-    double time_val;
-
     if (!ws || ws->getReadyState() == WebSocket::CLOSED) {
         delete ws;
         res_init();
@@ -46,15 +44,13 @@ void output_ws_handle_data(obd_data_t *obd) {
             return;
     }
 
-    gettimeofday(&tv, NULL);
-    time_val = tv.tv_sec + ((double)tv.tv_usec / 1000000);
-
     // We forget endianess exists...
     std::vector<uint8_t> buf;
     uint8_t* start = reinterpret_cast<uint8_t*>(obd);
+    // header that indicates type 1, which is telemetry
+    buf.push_back(1);
     buf.insert(buf.end(), start, start + sizeof(obd_data_t));
     ws->sendBinary(buf);
-
     ws->poll();
     ws->dispatchBinary(handle_binary_message);
 }

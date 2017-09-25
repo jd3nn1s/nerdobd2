@@ -51,7 +51,6 @@ static int query_ini_handler(void* user, const char* section, const char* name, 
     return 1;
 }
 
-
 bool load_query_plugin(void)
 {
     bool error;
@@ -64,7 +63,7 @@ bool load_query_plugin(void)
     return true;
 }
 
-bool load_plugin(const char* plugin_file, bool query_plugin) {
+bool load_plugin(const char* plugin_file, nerdobd2_plugin_type type) {
     void *handle;
     char* error;
     char* sym_name;
@@ -80,9 +79,9 @@ bool load_plugin(const char* plugin_file, bool query_plugin) {
     // clear any error conditions
     dlerror();
 
-    if (query_plugin)
+    if (type == PLUGIN_QUERY)
         query_plugin_load = dlsym(handle, "query_plugin_load");
-    else
+    else if (type == PLUGIN_OUTPUT)
         output_plugin_load = dlsym(handle, "output_plugin_load");
 
     if ((error = dlerror()) != NULL)  {
@@ -92,14 +91,14 @@ bool load_plugin(const char* plugin_file, bool query_plugin) {
     }
     printf("Loaded: %s\n", plugin_file);
 
-    if (query_plugin) {
+    if (type == PLUGIN_QUERY) {
         loaded_query_plugin_struct = query_plugin_load();
         if (!loaded_query_plugin_struct->json_get_data
             || !loaded_query_plugin_struct->json_get_averages
             || !loaded_query_plugin_struct->json_get_graph_data)
               fprintf(stderr, "Configured query plugin does not implement all required capabilities.\n");
     }
-    else {
+    else if (type == PLUGIN_OUTPUT) {
         struct output_plugin* plugin = output_plugin_load();
         int free_pos = 0;
 
@@ -169,4 +168,3 @@ void close_query_plugin(void) {
     dlclose(loaded_plugins[0]);
     loaded_plugins[0] = 0;
 }
-

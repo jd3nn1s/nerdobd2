@@ -10,3 +10,6 @@
 [submodule "externals/vag-rosetta"]
 	path = externals/vag-rosetta
 	url = git@github.com:jd3nn1s/vag-rosetta.git
+[submodule "externals/flatbuffers"]
+	path = externals/flatbuffers
+	url = https://github.com/google/flatbuffers.git

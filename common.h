@@ -1,5 +1,6 @@
 #pragma once
 #include "config.h"
+#include <stdint.h>
 #ifdef GPSD_FOUND
 #   include <gps.h>
 #endif
@@ -11,26 +12,25 @@
 // the engine data struct
 typedef struct obd_data_t {
     float   rpm;
-    float   injection_time;
     float   oil_pressure;
     float   speed;
 
-    // consumption (will be calculated)
-    float   consumption_per_h;
-    float   consumption_per_100km;
+    float   fuel_remaining;
+    uint8_t fuel_level;
 
-    float   duration_consumption;
-    float   duration_speed;
-
-    float   temp_engine;
+    float   temp_oil;
+    float   temp_coolant;
     float   temp_air_intake;
     float   voltage;
 
-#ifdef GPSD_FOUND
-    struct gps_fix_t gps;
-#endif
+    double latitude;
+    double longitude;
+    float  altitude;
+    float  track;
+    float  gps_speed;
 
-} obd_data_t;
+    uint8_t throttle_angle;
+} __attribute__((__packed__)) obd_data_t;
 
 #define FIELD_THROTTLE_ANGLE 1
 #define FIELD_INTAKE_AIR 2

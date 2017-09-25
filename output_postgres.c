@@ -77,31 +77,19 @@ init_db(void) {
                         id                    SERIAL, \
                         time                  TIMESTAMP, \
                         rpm                   FLOAT, \
-                        speed                 FLOAT, \
-                        injection_time        FLOAT, \
                         oil_pressure          FLOAT, \
-                        consumption_per_100km FLOAT, \
-                        consumption_per_h     FLOAT, \
-                        duration_consumption  FLOAT, \
-                        duration_speed        FLOAT, \
-                        liters                FLOAT, \
-                        kilometers            FLOAT, \
-                        temp_engine           FLOAT, \
+                        speed                 FLOAT, \
+                        fuel_remaining        FLOAT, \
+                        fuel_level            INTEGER, \
+                        temp_oil              FLOAT, \
+                        temp_coolant          FLOAT, \
                         temp_air_intake       FLOAT, \
                         voltage               FLOAT, \
-                        gps_mode              FLOAT, \
-                        gps_latitude          FLOAT, \
-                        gps_longitude         FLOAT, \
-                        gps_altitude          FLOAT, \
-                        gps_speed             FLOAT, \
-                        gps_climb             FLOAT, \
+                        latitude              FLOAT, \
+                        longitude             FLOAT, \
+                        altitude              FLOAT, \
                         gps_track             FLOAT, \
-                        gps_err_latitude      FLOAT, \
-                        gps_err_longitude     FLOAT, \
-                        gps_err_altitude      FLOAT, \
-                        gps_err_speed         FLOAT, \
-                        gps_err_climb         FLOAT, \
-                        gps_err_track         FLOAT )");
+                        gps_speed             FLOAT)");
 
 
     // create table where set point information is stored

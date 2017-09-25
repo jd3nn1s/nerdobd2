@@ -1,7 +1,7 @@
 /* this file was heavily "inspired" (read: copied) from cgps.c
  * thank you, gpsd team!
  */
-#include "gps.h"
+#include "gpsd.h"
 #include <errno.h>
 #include <string.h>
 
@@ -10,7 +10,7 @@ char    gps_available = 0;
 
 
 void
-gps_stop(void) {
+gpsd_stop(void) {
 
     if (!gps_available)
         return;
@@ -23,7 +23,7 @@ gps_stop(void) {
 
 
 int
-gps_start(void) {
+gpsd_start(void) {
 
     // open the stream to gpsd
     if (gps_open(GPSD_SHARED_MEMORY, NULL, &gpsdata) != 0) {
@@ -40,14 +40,14 @@ gps_start(void) {
 }
 
 void
-gps_reconnect(void) {
+gpsd_reconnect(void) {
     fprintf(stderr, "reconnecting to gpsd...\n");
     gps_stop();
     gps_start();
 }
 
 int
-get_gps_data(struct gps_fix_t *g) {
+get_gpsd_data(struct gps_fix_t *g) {
 
     if (!gps_available)
         return -1;
@@ -56,14 +56,14 @@ get_gps_data(struct gps_fix_t *g) {
     // see http://gpsd.berlios.de/client-howto.html
     if (!gps_waiting(&gpsdata, 2000000)) {
         fprintf(stderr, "no gps data available (timeout)\n");
-        gps_reconnect();
+        gpsd_reconnect();
         return -1;
     }
 
     errno = 0;
     if (gps_read(&gpsdata) == -1) {
         perror("gps_read()");
-        gps_reconnect();
+        gpsd_reconnect();
         return -1;
     }
 

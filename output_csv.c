@@ -22,28 +22,15 @@ void output_csv_handle_data(obd_data_t *obd) {
     gettimeofday(&tv, NULL);
     time_val = tv.tv_sec + ((double)tv.tv_usec / 1000000);
     output_double(time_val, true);
-#ifdef GPSD_FOUND
-    output_double(obd->gps.longitude, true);
-    output_double(obd->gps.latitude, true);
-    output_double(obd->gps.altitude, true);
+    output_double(obd->longitude, true);
+    output_double(obd->latitude, true);
+    output_double(obd->altitude, true);
     fprintf(csv_fh, ",,");    // Skip g-force values
-#else
-    fprintf(csv_fh, ",,,,,");
-#endif
     output_double(obd->speed, true);
-#ifdef GPSD_FOUND
-    output_double(obd->gps.track, true);
+    output_double(obd->track, true);
     fputc(',', csv_fh);    // Skip lap
-#else
-    fprintf(csv_fh, ",,");
-#endif
     output_double(obd->rpm, true);
-    fprintf(csv_fh, ",,");    // Skip gear and throttle
-#ifdef GPSD_FOUND
-    output_double(obd->gps.mode, false);
-#else
-    fputc(',', csv_fh);
-#endif
+    fprintf(csv_fh, ",,,");    // Skip gear, throttle and gps mode
     fprintf(csv_fh, "\r\n");
 }
 

@@ -20,47 +20,30 @@ void
 build_query(char* query, int query_len, obd_data_t* obd) {
     // add obd data
     add_value(query, obd->rpm);
-    add_value(query, obd->speed);
-    add_value(query, obd->injection_time);
     add_value(query, obd->oil_pressure);
-    add_value(query, obd->consumption_per_100km);
-    add_value(query, obd->consumption_per_h);
-    add_value(query, obd->duration_consumption);
-    add_value(query, obd->duration_speed);
-    add_value(query, obd->consumption_per_h / 3600 * obd->duration_consumption);
-    add_value(query, obd->speed / 3600 * obd->duration_speed);
-    add_value(query, obd->temp_engine);
+    add_value(query, obd->speed);
+    add_value(query, obd->fuel_remaining);
+    add_value(query, obd->fuel_level);
+    add_value(query, obd->temp_oil);
+    add_value(query, obd->temp_coolant);
     add_value(query, obd->temp_air_intake);
     add_value(query, obd->voltage);
 
 #ifdef GPSD_FOUND
-    // add gps data, if available
-    if (obd->gps.mode != 0 && obd->gps.mode != 1) {
-        add_value(query, (double) obd->gps.mode);
-        add_value(query, obd->gps.latitude);
-        add_value(query, obd->gps.longitude);
-        add_value(query, obd->gps.altitude);
-        add_value(query, obd->gps.speed);
-        add_value(query, obd->gps.climb);
-        add_value(query, obd->gps.track);
-        add_value(query, obd->gps.epy);
-        add_value(query, obd->gps.epx);
-        add_value(query, obd->gps.epv);
-        add_value(query, obd->gps.eps);
-        add_value(query, obd->gps.epc);
-        add_value(query, obd->gps.epd);
-    }
-
+    // add gps data
+    add_value(query, obd->latitude);
+    add_value(query, obd->longitude);
+    add_value(query, obd->altitude);
+    add_value(query, obd->track);
+    add_value(query, obd->gps_speed);
 #else
-    if (0);
+    // fill in empty column fields for gps data
+    strncat(query,
+            ", 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'",
+            query_len - strlen(query) - 1);
+    query[query_len - 1] = '\0';
 #endif
-    else {
-        // fill in empty column fields for gps data
-        strncat(query,
-                ", 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'",
-                query_len - strlen(query) - 1);
-        query[query_len - 1] = '\0';
-    }
+    add_value(query, obd->throttle_angle);
 
     strncat(query, " )\n", query_len - strlen(query) - 1);
     query[query_len - 1] = '\0';

@@ -44,10 +44,12 @@ static struct block_t block1[] = {{
     .block = 0x02,
     .modulus_value = 15,
     .fields = {{FIELD_RPM, 1}, {FIELD_BATTERY, 3}, {FIELD_INJECTION_TIME, 2}}
+/*
+    Getting coolant temp from Arduino now
 },{
     .block = 0x01,
     .modulus_value = 3,
-    .fields = {{FIELD_RPM, 1}, {FIELD_COOLANT_TEMP, 2}}
+    .fields = {{FIELD_RPM, 1}, {FIELD_COOLANT_TEMP, 2}}*/
 }, {0}};
 
 static struct block_t* activeblock;
@@ -538,9 +540,9 @@ kw1281_recv_block(struct block_t* block) {
             case FIELD_BATTERY:
             case FIELD_COOLANT_TEMP:
                 block_handle_field(type, convert_value(&value));
+                break;
             }
         }
-        block_complete();
     }
 
     /* read block end */
