@@ -619,7 +619,7 @@ kw1281_open(char *device) {
 
     ioctl(fd, TCGETS2, &oldtio);
 
-    newtio.c_cflag = BOTHER | CLOCAL | CREAD;
+    newtio.c_cflag = BOTHER | CLOCAL | CREAD | CS8;
     newtio.c_iflag = IGNPAR;    // ICRNL provokes bogus replys after block 12
     newtio.c_oflag = 0;
     newtio.c_ispeed = BAUDRATE;
