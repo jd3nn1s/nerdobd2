@@ -27,7 +27,6 @@ uint32_t convert_bytes_to_uint32(uint8_t* p) {
 }
 
 static void* thread_run(void* arg) {
-    int baud_rate = 921600;
     char* device = "/dev/ttyAMA0";
 
     while(fd == -1) {
@@ -41,14 +40,13 @@ static void* thread_run(void* arg) {
 
     pthread_cleanup_push(gps_cleanup, (void*)0);
 
-//    printf("gps: 1\n");
-    skytraq_output_enable_binary(fd, 1);
-//    printf("gps: 2\n");
-//    skytraq_read_software_version(fd);
-    printf("gps: 3\n");
-//    skytraq_set_power_mode(fd, 0, 0);
+// configure GPS device
+//    skytraq_output_enable_binary(fd, 1);
+//    skytraq_set_power_mode(fd, 0, 1);
 //    skytraq_set_position_rate(fd, 50, 1);
-//    skytraq_set_serial_speed(fd, 6, 0);
+//    skytraq_set_serial_speed(fd, 6, 1);
+
+    skytraq_read_software_version(fd);
 
     struct timespec clock = {0};
     clock_gettime(CLOCK_MONOTONIC, &clock);
@@ -61,7 +59,9 @@ static void* thread_run(void* arg) {
             if (p->data[0] == SKYTRAQ_RESPONSE_NAVIGATION_DATA) {
 
                 if(p->data[1] == 0) { // we don't have a fix
-                    printf("no fix!\n");
+                    if (++clock_num % 100 == 0) {
+                        printf("no fix!\n");
+                    }
                     continue;
                 }
 
@@ -81,16 +81,13 @@ static void* thread_run(void* arg) {
                 float track = atan(vx / vy);
                 if (isnan(track))
                     track = 0;
-                if (++clock_num == 100) {
+                if (++clock_num % 100 == 0) {
                     struct timespec new_time = {0};
                     clock_gettime(CLOCK_MONOTONIC, &new_time);
-                    printf("%fHz\n", clock_num / (((double)(new_time.tv_sec - clock.tv_sec)) + (new_time.tv_nsec - clock.tv_nsec) / 1000000000));
+                    printf("%fHz\n", 100 / (((double)(new_time.tv_sec - clock.tv_sec)) + (new_time.tv_nsec - clock.tv_nsec) / 1000000000));
                     clock = new_time;
-                    clock_num = 0;
 
                     printf("Latitude: %f Longitude: %f altitude: %fm speed: %f m/s track: %f deg hdop: %d\n", latitude, longitude, altitude, speed, track, hdop);
-                    //skytraq_read_position_rate(fd);
-                    //skytraq_read_power_mode(fd);
                 }   
                 pthread_mutex_lock(obd_data_lock);
                 obd_data->latitude = latitude;

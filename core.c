@@ -5,7 +5,7 @@ void cleanup(int);
 char cleaning_up = 0;
 
 static pthread_t output_thread;
-static const int output_delay_usec = 50 * 1000;
+static const int output_delay_usec = 20 * 1000;
 
 #ifdef BUILD_HTTPD
 pid_t   pid_httpd = -1;

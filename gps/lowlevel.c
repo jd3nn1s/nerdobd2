@@ -20,6 +20,8 @@
 
  */
 #include "datalogger.h"
+#include <asm/termios.h>
+#include <asm/ioctls.h>
 #include <sys/time.h>
 #include <errno.h>
 #include <poll.h>
@@ -275,31 +277,26 @@ int skytraq_write_package_with_response( int fd, SkyTraqPackage* p, unsigned tim
 }
 
 int raw(int fd) {
-    struct termios new_io;
-    struct termios old_io;
+    struct termios2 tio;
 
-    if ((tcgetattr(fd, &old_io)) == ERROR)
+    if (ioctl(fd, TCGETS2, &tio) == ERROR)
         return ERROR;
 
-    new_io = old_io;
+    tio.c_iflag &= ~(BRKINT|ICRNL|INPCK|ISTRIP|IXON|IXOFF|CRTSCTS);
+    tio.c_oflag &= ~(OPOST);
 
-    new_io.c_ispeed = B230400;
-    new_io.c_ospeed = B230400;
+    tio.c_lflag &= ~(ECHO|ICANON|IEXTEN|ISIG);
 
-    //new_io.c_ispeed = B921600;
-    //new_io.c_ospeed = B921600;
+    tio.c_cflag &= ~(CSIZE|PARENB);
+    tio.c_cflag |= CS8|CLOCAL|CREAD;
+    tio.c_cc[VMIN] = 1;
+    tio.c_cc[VTIME]= 0;
 
-    new_io.c_iflag &= ~(BRKINT|ICRNL|INPCK|ISTRIP|IXON|IXOFF|CRTSCTS);
-    new_io.c_oflag &= ~(OPOST);
-    new_io.c_cflag &= ~(CSIZE|PARENB);
-    new_io.c_lflag &= ~(ECHO|ICANON|IEXTEN|ISIG);
-    new_io.c_cflag |= CS8;
-    new_io.c_cc[VMIN] = 1;
-    new_io.c_cc[VTIME]= 0;
-
-    if ((tcsetattr(fd, TCSAFLUSH, &new_io)) == ERROR)
+    tcflush(fd, TCIFLUSH);
+    if (ioctl(fd, TCSETS2, &tio) == ERROR) {
+        printf("tcset() failed.\n");
         return ERROR;
-
+    }
     return SUCCESS;
 }
 
@@ -318,43 +315,29 @@ int open_port( char* device) {
     int flags = fcntl(fd, F_GETFL);
     fcntl(fd, F_SETFL, flags & ~O_NONBLOCK);
  
-    raw(fd);
+    if (raw(fd) == ERROR) {
+        printf("unable to call raw()\n");
+    }
+    if (set_port_speed(fd, 230400) == ERROR) {
+        printf("unable to set port speed\n");
+    }
     return fd;
 }
 
-static speed_t mkspeed(unsigned br) {
-    switch (br) {
-    case   1200:
-        return  B1200;
-    case   2400:
-        return  B2400;
-    case   4800:
-        return  B4800;
-    case   9600:
-        return  B9600;
-    case  19200:
-        return  B19200;
-    case  38400:
-        return  B38400;
-    case  57600:
-        return  B57600;
-    case 115200:
-        return B115200;
-    default:
-        return ERROR;
-    }
-}
+int set_port_speed(int fd,  unsigned speed) {
+    struct termios2 tio = {0};
 
-int set_port_speed( int fd,  unsigned speed) {
-    struct termios io;
-    speed_t s;
-
-    s =  mkspeed(speed);
-    if ((tcgetattr(fd, &io)) == ERROR)
+    if (ioctl(fd, TCGETS2, &tio) == ERROR)
         return ERROR;
-    cfsetospeed(&io, s);
-    cfsetispeed(&io, s);
-    return tcsetattr(fd, TCSADRAIN, &io) ? ERROR : SUCCESS;
+
+    tio.c_cflag &= ~CBAUD;
+    tio.c_cflag |= BOTHER;
+    tio.c_ispeed = speed;
+    tio.c_ospeed = speed;
+
+    if (ioctl(fd, TCSETS2, &tio) == ERROR)
+        return ERROR;
+    return (tio.c_ospeed != speed || tio.c_ispeed != speed) ? ERROR : SUCCESS;
 }
 
 /**

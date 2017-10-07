@@ -6,7 +6,7 @@
 output=output_udp
 
 #[output_websocket]
-#url=www.24hoursoflemonaid.com/ws/telemetry_in
+#url=
 
 [output_udp]
 hostname=

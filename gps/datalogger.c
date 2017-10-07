@@ -65,7 +65,7 @@ int skytraq_read_software_version(int fd) {
         if ( response != NULL) {
             skytraq_dump_package(response);
 
-            printf("kernel version: %d.%d.%d -- ODM version: %d.%d.%d -- revision: 20%02d-%02d-%02d\n",
+            printf("GPS kernel version: %d.%d.%d -- ODM version: %d.%d.%d -- revision: 20%02d-%02d-%02d\n",
                    response->data[3],response->data[4],response->data[5],
                    response->data[7],response->data[8],response->data[9],
                    response->data[11],response->data[12],response->data[13]);
@@ -268,8 +268,7 @@ int skytraq_set_position_rate( int fd, int rate, int permanent) {
     return 0;
 }
 
-/*unsigned baud_rates[] = { 921600, 115200, 9600,57600 ,1200,2400,4800,19200, 38400 };*/
-unsigned baud_rates[] = { 921600, 9600,115200, 57600, 38400, 19200, 9600, 4800, 2400, 1200 };
+unsigned baud_rates[] = { 921600, 230400, 115200, 57600, 38400, 19200, 9600, 4800, 2400, 1200 };
 
 int contains( gbuint8* haystack, int h_length, gbuint8* needle, int n_length) {
     int offset = 0;
