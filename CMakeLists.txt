@@ -78,5 +78,6 @@ add_library(output_websocket SHARED output_websocket.cpp common.h plugins.h)
 target_link_libraries(output_websocket ${CMAKE_SOURCE_DIR}/libeasywsclient.a)
 
 add_library(output_udp SHARED output_udp.cpp common.h plugins.h)
+add_library(output_canbus SHARED output_canbus.c common.h plugins.h)
 
 set(CMAKE_BUILD_TYPE Debug)

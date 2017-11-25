@@ -318,6 +318,7 @@ int open_port( char* device) {
     if (raw(fd) == ERROR) {
         printf("unable to call raw()\n");
     }
+//    if (set_port_speed(fd, 9600) == ERROR) {
     if (set_port_speed(fd, 230400) == ERROR) {
         printf("unable to set port speed\n");
     }
